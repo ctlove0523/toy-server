@@ -14,26 +14,16 @@ type Server struct {
 	ProtocolName         string
 	BindHost             string
 	Port                 uint16
-	Handler              TcpConnHandler
+	TlsEnabled           bool
 	CaCertificate        []byte
 	ServerCertificate    []byte
 	ServerCertificateKey []byte
+	Handler              TcpConnHandler
 }
 
 func (s *Server) createTcpListener() net.Listener {
 	// process tcp protocol
-	if s.ProtocolName == "tcp" {
-		listener, err := net.Listen(s.ProtocolName, fmt.Sprintf("%s:%d", s.BindHost, s.Port))
-		if err != nil {
-			fmt.Printf("tcp server bind %s,port %d failed,reason %s", s.BindHost, s.Port, err)
-			return nil
-		}
-
-		return listener
-	}
-
-	// process tls protocol
-	if s.ProtocolName == "tls" {
+	if s.TlsEnabled {
 		// 处理ca证书
 		serverCaPool := x509.NewCertPool()
 		serverCaPool.AppendCertsFromPEM(s.CaCertificate)
@@ -75,8 +65,14 @@ func (s *Server) createTcpListener() net.Listener {
 
 		return listener
 	}
+	listener, err := net.Listen(s.ProtocolName, fmt.Sprintf("%s:%d", s.BindHost, s.Port))
+	if err != nil {
+		fmt.Printf("tcp server bind %s,port %d failed,reason %s", s.BindHost, s.Port, err)
+		return nil
+	}
 
-	return nil
+	return listener
+
 }
 
 func (s *Server) Serve() {
