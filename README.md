@@ -1,3 +1,3 @@
-# toyServer
+# toy server
 
-A toy tcp server
+A simple tcp and udp server
