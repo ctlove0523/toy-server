@@ -11,14 +11,99 @@ type TcpConnHandler func(conn net.Conn) error
 type UdpConnHandler func(conn net.UDPConn) error
 
 type Server struct {
-	ProtocolName         string
-	BindHost             string
-	Port                 uint16
+	TcpProtocolName      string
+	TcpBindHost          string
+	TcpPort              uint16
+	UdpProtocolName      string
+	UdpBindHost          string
+	UdpPort              int
 	TlsEnabled           bool
 	CaCertificate        []byte
 	ServerCertificate    []byte
 	ServerCertificateKey []byte
-	Handler              TcpConnHandler
+	TcpHandler           TcpConnHandler
+	UdpHandler           UdpConnHandler
+
+	stateFlag chan struct{}
+}
+
+func (s *Server) Serve() {
+	s.stateFlag = make(chan struct{})
+	// 检查是否开启UDP服务
+	if len(s.UdpProtocolName) != 0 {
+		fmt.Printf("begin to serve udp,listen = %s,port = %d\n", s.UdpBindHost, s.UdpPort)
+
+		ip := s.lookUpHost(s.UdpBindHost)
+		if ip == nil {
+			return
+		}
+
+		udpAddr := &net.UDPAddr{
+			IP:   ip,
+			Port: s.UdpPort,
+		}
+
+		udpConn, err := net.ListenUDP(s.UdpProtocolName, udpAddr)
+		if err != nil {
+			fmt.Println("serve udp failed")
+			return
+		}
+		go func() {
+			err := s.UdpHandler(*udpConn)
+			if err != nil {
+				udpConn.Close()
+			}
+		}()
+	}
+
+	if len(s.TcpProtocolName) != 0 {
+		var listener net.Listener
+
+		listener = s.createTcpListener()
+		if listener == nil {
+			return
+		}
+
+		defer listener.Close()
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				fmt.Printf("server accept new connectin faield %s\n", err)
+				continue
+			}
+
+			go func() {
+				err := s.TcpHandler(conn)
+				if err != nil {
+					fmt.Printf("begin to close connection %s\n", conn.RemoteAddr())
+					err = conn.Close()
+					if err != nil {
+						fmt.Printf("close connection failed %s\n", err)
+					}
+
+					return
+				}
+			}()
+		}
+	}
+
+	<-s.stateFlag
+}
+
+func (s *Server) lookUpHost(host string) net.IP {
+	ip, err := net.LookupIP(host)
+	if err != nil {
+		fmt.Printf("can't resolve host %s\n", host)
+		return nil
+	}
+
+	if len(ip) == 0 {
+		fmt.Printf("host resolved but no ip address %s\n", host)
+		return nil
+	}
+
+	return ip[0]
+
 }
 
 func (s *Server) createTcpListener() net.Listener {
@@ -57,52 +142,20 @@ func (s *Server) createTcpListener() net.Listener {
 			MinVersion:   tls.VersionTLS12,
 		}
 
-		listener, err := tls.Listen(s.ProtocolName, fmt.Sprintf("%s:%d", s.BindHost, s.Port), config)
+		listener, err := tls.Listen(s.TcpProtocolName, fmt.Sprintf("%s:%d", s.TcpBindHost, s.TcpPort), config)
 		if err != nil {
-			fmt.Printf("tls server bind %s,port %d failed,reason %s\n", s.BindHost, s.Port, err)
+			fmt.Printf("tls server bind %s,port %d failed,reason %s\n", s.TcpBindHost, s.TcpPort, err)
 			return nil
 		}
 
 		return listener
 	}
-	listener, err := net.Listen(s.ProtocolName, fmt.Sprintf("%s:%d", s.BindHost, s.Port))
+	listener, err := net.Listen(s.TcpProtocolName, fmt.Sprintf("%s:%d", s.TcpBindHost, s.TcpPort))
 	if err != nil {
-		fmt.Printf("tcp server bind %s,port %d failed,reason %s", s.BindHost, s.Port, err)
+		fmt.Printf("tcp server bind %s,port %d failed,reason %s", s.TcpBindHost, s.TcpPort, err)
 		return nil
 	}
 
 	return listener
-
-}
-
-func (s *Server) Serve() {
-	var listener net.Listener
-
-	listener = s.createTcpListener()
-	if listener == nil {
-		return
-	}
-
-	defer listener.Close()
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Printf("server accept new connectin faield %s\n", err)
-			continue
-		}
-
-		go func() {
-			err := s.Handler(conn)
-			if err != nil {
-				fmt.Printf("begin to close connection %s\n", conn.RemoteAddr())
-				err = conn.Close()
-				if err != nil {
-					fmt.Printf("close connection failed %s\n", err)
-				}
-
-				return
-			}
-		}()
-	}
 
 }

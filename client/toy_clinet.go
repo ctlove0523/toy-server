@@ -16,7 +16,7 @@ func main() {
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 	}
-	config:=&tls.Config{
+	config := &tls.Config{
 		MaxVersion:         tls.VersionTLS12,
 		MinVersion:         tls.VersionTLS12,
 		CipherSuites:       cipherSuites,
