@@ -7,18 +7,19 @@ import (
 )
 
 func main() {
-	add := &net.UDPAddr{
-		IP:   net.IPv4(127, 0, 0, 1),
-		Port: 5683,
-	}
-	conn, err := net.DialUDP("udp", nil, add)
+	ip := net.ParseIP("224.0.0.250")
+	srcAddr := &net.UDPAddr{IP: []byte{127, 0, 0, 1}, Port: 0}
+	dstAddr := &net.UDPAddr{IP: ip, Port: 9981}
+	conn, err := net.DialUDP("udp", srcAddr, dstAddr)
 	if err != nil {
 		fmt.Println(err)
-		return
 	}
-
 	for {
 		time.Sleep(3 * time.Second)
-		conn.Write([]byte("hello udp server"))
+		_, err := conn.Write([]byte("hello"))
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Printf("<%s>\n", conn.RemoteAddr())
 	}
 }

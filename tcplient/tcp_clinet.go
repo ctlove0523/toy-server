@@ -29,6 +29,6 @@ func main() {
 		return
 	}
 
-	fmt.Println("connect to server success")
-	conn.Write([]byte("hello tls server"))
+	fmt.Println("connect to tcpserver success")
+	conn.Write([]byte("hello tls tcpserver"))
 }

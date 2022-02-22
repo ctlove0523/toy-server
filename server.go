@@ -9,22 +9,25 @@ import (
 
 type TcpConnHandler func(conn net.Conn) error
 type UdpConnHandler func(conn net.UDPConn) error
+type MulticastHandler func(conn net.UDPConn) error
 
 type Server struct {
 	TcpProtocolName      string
 	TcpBindHost          string
 	TcpPort              uint16
-	UdpProtocolName      string
-	UdpBindHost          string
-	UdpPort              int
 	TlsEnabled           bool
 	CaCertificate        []byte
 	ServerCertificate    []byte
 	ServerCertificateKey []byte
 	TcpHandler           TcpConnHandler
+	UdpProtocolName      string
+	UdpBindHost          string
+	UdpPort              int
 	UdpHandler           UdpConnHandler
-
-	stateFlag chan struct{}
+	MulticastBindHost    string
+	MulticastPort        int
+	MulticastHandler     MulticastHandler
+	stateFlag            chan struct{}
 }
 
 func (s *Server) Serve() {
@@ -33,14 +36,10 @@ func (s *Server) Serve() {
 	if len(s.UdpProtocolName) != 0 {
 		fmt.Printf("begin to serve udp,listen = %s,port = %d\n", s.UdpBindHost, s.UdpPort)
 
-		ip := s.lookUpHost(s.UdpBindHost)
-		if ip == nil {
+		udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", s.UdpBindHost, s.UdpPort))
+		if err != nil {
+			fmt.Printf("resovle udp addr failed,error = %s\n", err)
 			return
-		}
-
-		udpAddr := &net.UDPAddr{
-			IP:   ip,
-			Port: s.UdpPort,
 		}
 
 		udpConn, err := net.ListenUDP(s.UdpProtocolName, udpAddr)
@@ -51,7 +50,40 @@ func (s *Server) Serve() {
 		go func() {
 			err := s.UdpHandler(*udpConn)
 			if err != nil {
-				udpConn.Close()
+				err = udpConn.Close()
+				if err != nil {
+					fmt.Println("close udp connection failed")
+				}
+			}
+		}()
+	}
+
+	// 检查是否多播
+	if len(s.MulticastBindHost) != 0 {
+		fmt.Println(fmt.Sprintf("%s:%d", s.MulticastBindHost, s.MulticastPort))
+		gaddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", s.MulticastBindHost, s.MulticastPort))
+		if err != nil {
+			fmt.Printf("resovle multicast udp addr failed,error = %s\n", err)
+			return
+		}
+		conn, err := net.ListenMulticastUDP("udp", nil, gaddr)
+		if err != nil {
+			fmt.Printf("listen multicast udp failed,error = %s\n", err)
+			return
+		}
+
+		go func() {
+			for {
+				err := s.MulticastHandler(*conn)
+				if err != nil {
+					fmt.Println("process multicast message failed")
+					err = conn.Close()
+					if err != nil {
+						fmt.Println("close connection failed")
+					}
+					return
+				}
+
 			}
 		}()
 	}
@@ -68,7 +100,7 @@ func (s *Server) Serve() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				fmt.Printf("server accept new connectin faield %s\n", err)
+				fmt.Printf("tcpserver accept new connectin faield %s\n", err)
 				continue
 			}
 
@@ -116,7 +148,7 @@ func (s *Server) createTcpListener() net.Listener {
 		// 处理服务端证书
 		serverCert, err := tls.X509KeyPair(s.ServerCertificate, s.ServerCertificateKey)
 		if err != nil {
-			fmt.Println("load server certificate failed")
+			fmt.Println("load tcpserver certificate failed")
 			return nil
 		}
 		var serverCerts []tls.Certificate
@@ -144,7 +176,7 @@ func (s *Server) createTcpListener() net.Listener {
 
 		listener, err := tls.Listen(s.TcpProtocolName, fmt.Sprintf("%s:%d", s.TcpBindHost, s.TcpPort), config)
 		if err != nil {
-			fmt.Printf("tls server bind %s,port %d failed,reason %s\n", s.TcpBindHost, s.TcpPort, err)
+			fmt.Printf("tls tcpserver bind %s,port %d failed,reason %s\n", s.TcpBindHost, s.TcpPort, err)
 			return nil
 		}
 
@@ -152,7 +184,7 @@ func (s *Server) createTcpListener() net.Listener {
 	}
 	listener, err := net.Listen(s.TcpProtocolName, fmt.Sprintf("%s:%d", s.TcpBindHost, s.TcpPort))
 	if err != nil {
-		fmt.Printf("tcp server bind %s,port %d failed,reason %s", s.TcpBindHost, s.TcpPort, err)
+		fmt.Printf("tcp tcpserver bind %s,port %d failed,reason %s", s.TcpBindHost, s.TcpPort, err)
 		return nil
 	}
 

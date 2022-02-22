@@ -14,15 +14,15 @@ func main() {
 		return
 	}
 
-	serverCert, err := ioutil.ReadFile("./certs/server.pem")
+	serverCert, err := ioutil.ReadFile("./certs/tcpserver.pem")
 	if err != nil {
-		fmt.Printf("load server cert failed,err = %s\n", err)
+		fmt.Printf("load tcpserver cert failed,err = %s\n", err)
 		return
 	}
 
-	serverKey, err := ioutil.ReadFile("./certs/server.key")
+	serverKey, err := ioutil.ReadFile("./certs/tcpserver.key")
 	if err != nil {
-		fmt.Printf("load server key failed,err = %s\n", err)
+		fmt.Printf("load tcpserver key failed,err = %s\n", err)
 		return
 	}
 
