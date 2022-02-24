@@ -30,8 +30,46 @@ type Server struct {
 	stateFlag            chan struct{}
 }
 
+func NewTcpServer(host string, port uint16, handler TcpConnHandler) *Server {
+	if handler == nil {
+		fmt.Println("tcp server must set one TcpConnHandler")
+		return nil
+	}
+
+	s := &Server{
+		TcpProtocolName: "tcp",
+		TcpBindHost:     host,
+		TcpPort:         port,
+		TcpHandler:      handler,
+		TlsEnabled:      false,
+		stateFlag:       make(chan struct{}),
+	}
+
+	return s
+}
+
+func NewTlsServer(host string, port uint16, handler TcpConnHandler, ca, serverCert, serverKey []byte) *Server {
+	if handler == nil {
+		fmt.Println("tls server must set one TcpConnHandler")
+		return nil
+	}
+
+	s := &Server{
+		TcpProtocolName:      "tcp",
+		TcpBindHost:          host,
+		TcpPort:              port,
+		TlsEnabled:           true,
+		CaCertificate:        ca,
+		ServerCertificate:    serverCert,
+		ServerCertificateKey: serverKey,
+		TcpHandler:           handler,
+		stateFlag:            make(chan struct{}),
+	}
+
+	return s
+}
+
 func (s *Server) Serve() {
-	s.stateFlag = make(chan struct{})
 	// 检查是否开启UDP服务
 	if len(s.UdpProtocolName) != 0 {
 		fmt.Printf("begin to serve udp,listen = %s,port = %d\n", s.UdpBindHost, s.UdpPort)
