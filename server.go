@@ -69,6 +69,23 @@ func NewTlsServer(host string, port uint16, handler TcpConnHandler, ca, serverCe
 	return s
 }
 
+func NewUdpServer(host string, port int, handler UdpConnHandler) *Server {
+	if handler == nil {
+		fmt.Println("udp server must set one UdpConnHandler")
+		return nil
+	}
+
+	s := &Server{
+		UdpProtocolName: "udp",
+		UdpBindHost:     host,
+		UdpPort:         port,
+		UdpHandler:      handler,
+		stateFlag:       make(chan struct{}),
+	}
+
+	return s
+}
+
 func (s *Server) Serve() {
 	// 检查是否开启UDP服务
 	if len(s.UdpProtocolName) != 0 {
